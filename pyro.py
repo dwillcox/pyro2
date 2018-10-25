@@ -20,6 +20,7 @@ valid_solvers = ["advection",
                  "compressible_fv4",
                  "compressible_sdc",
                  "compressible_react",
+                 "compressible_starkiller",
                  "diffusion",
                  "incompressible",
                  "lm_atm",
@@ -177,7 +178,7 @@ class Pyro(object):
         self.sim.evolve()
 
         if self.verbose > 0:
-            print("%5d %10.5f %10.5f" %
+            print("%5d %10.5e %10.5e" %
                   (self.sim.n, self.sim.cc_data.t, self.sim.dt))
 
         # output
