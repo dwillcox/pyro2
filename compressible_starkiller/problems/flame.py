@@ -43,7 +43,6 @@ def init_data(my_data, rp, microphysics):
 
     r_init = rp.get_param("sedov.r_init")
 
-    gamma = rp.get_param("eos.gamma")
     pi = math.pi
 
     xmin = rp.get_param("mesh.xmin")
