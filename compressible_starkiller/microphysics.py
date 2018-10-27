@@ -9,6 +9,7 @@ class StarKiller(object):
     def __init__(self):
         self.eos = StarKillerEOS()
         self.network = StarKillerNetwork()
+        self.conductivity = StarKillerConductivity()
 
     def initialize(self, rp):
         probin = ""
@@ -21,10 +22,30 @@ class StarKiller(object):
         self.network.initialize()
         self.network.eos = self.eos
         self.eos.network = self.network
+        self.conductivity.initialize()
+
+class StarKillerConductivity(object):
+    def __init__(self, *args, **kwargs):
+        self.conductivity_module = None
+
+    def initialize(self):
+        self.conductivity_module = StarKillerMicrophysics.Actual_Conductivity_Module()
+
+    def thermal_conductivity(self, eos_state):
+        """
+        Conductivity
+
+        Evaluates the conductivity using StarKiller Microphysics
+
+        Arguments
+        ----------
+        eos_state : eos_t object for which the EOS has been called to fill thermo vars
+        """
+        self.conductivity_module.actual_conductivity(eos_state)
+
 
 class StarKillerEOS(object):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.eos_module = None
         self.eos_type_module = None
         self.eos_input_rp = None
@@ -151,34 +172,3 @@ class StarKillerNetwork(Network):
                 ener[i, j] += burn_state_out.e * burn_state_out.rho
                 for n in range(self.nspec):
                     rhox[i, j, n] = burn_state_out.rho * burn_state_out.xn[n]
-
-def k_th(cc_data, temp, const, constant=1):
-    """
-    Conductivity
-
-    If constant, just returns the constant defined in the params file.
-
-    Otherwise, it uses the formula for conductivity with constant opacity in the Castro/Microphysics library.
-
-    Parameters
-    ----------
-    cc_data : CellCenterData2d
-        the cell centered data
-    temp : ArrayIndexer
-        temperature
-    const : float
-        the diffusion constant or opacity
-    constant : int
-        Is the conductivity constant (1) or the opacity constant (0)
-    """
-    myg = cc_data.grid
-    k = myg.scratch_array()
-
-    if constant == 1:
-        k[:, :] = const
-    else:
-        sigma_SB = 5.6704e-5  # Stefan-Boltzmann in cgs
-        dens = cc_data.get_var("density")
-        k[:, :] = (16 * sigma_SB * temp**3) / (3 * const * dens)
-
-    return k

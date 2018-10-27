@@ -7,11 +7,12 @@ import numpy as np
 
 from simulation_null import grid_setup, bc_setup
 
+import mesh.boundary as bnd
+
 import compressible
 from compressible import Variables
 import compressible.BC as BC
-import compressible.derives as derives
-import mesh.boundary as bnd
+import compressible_starkiller.derives as derives
 import compressible_starkiller.microphysics as microphysics
 
 import util.plot_tools as plot_tools
@@ -65,10 +66,7 @@ class Simulation(compressible.Simulation):
             for v in extra_vars:
                 my_data.register_var(v, bc)
 
-        # store the EOS gamma as an auxillary quantity so we can have a
-        # self-contained object stored in output files to make plots.
         # store grav because we'll need that in some BCs
-        my_data.set_aux("gamma", self.rp.get_param("eos.gamma"))
         my_data.set_aux("grav", self.rp.get_param("compressible.grav"))
 
         my_data.create()
@@ -89,7 +87,7 @@ class Simulation(compressible.Simulation):
         self.ivars = Variables(my_data)
 
         # derived variables
-        self.cc_data.add_derived(derives.derive_primitives)
+        self.cc_data.add_derived(lambda myd, var: derives.derive_primitives(myd, var, self.microphysics, self.ivars))
 
         # initial conditions for the problem
         problem = importlib.import_module("{}.problems.{}".format(
@@ -172,6 +170,7 @@ class Simulation(compressible.Simulation):
 
         # compute T
         temp = myg.scratch_array()
+        k    = myg.scratch_array()
 
         eos_state = self.microphysics.eos.eos_type_module.eos_t()
         for i in range(myg.qx):
@@ -181,12 +180,9 @@ class Simulation(compressible.Simulation):
                 eos_state.xn = rhox[i, j, :]/eos_state.rho
                 self.microphysics.eos.eos_module.eos(self.microphysics.eos.eos_input_re,
                                                      eos_state)
+                self.microphysics.conductivity.thermal_conductivity(eos_state)
                 temp[i, j] = eos_state.t
-
-        # compute div kappa grad T
-        k_const = self.rp.get_param("diffusion.k")
-        const_opacity = self.rp.get_param("diffusion.constant_kappa")
-        k = microphysics.k_th(self.cc_data, temp, k_const, const_opacity)
+                k[i, j] = eos_state.conductivity
 
         div_kappa_grad_T = myg.scratch_array()
 
@@ -235,10 +231,6 @@ class Simulation(compressible.Simulation):
         # we do this even though ivars is in self, so this works when
         # we are plotting from a file
         ivars = compressible.Variables(self.cc_data)
-
-        # access gamma from the cc_data object so we can use dovis
-        # outside of a running simulation.
-        gamma = self.cc_data.get_aux("gamma")
 
         q = self.cons_to_prim(self.cc_data.data, ivars, self.cc_data.grid)
 
